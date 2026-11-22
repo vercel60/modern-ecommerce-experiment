@@ -1,0 +1,55 @@
+.cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.disc {
+  --size: clamp(46px, 3.5vw, 66px);
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: var(--size);
+  height: var(--size);
+  margin: calc(var(--size) / -2);
+  border-radius: 50%;
+  font-size: calc(var(--size) * 0.165);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: rgb(255 255 255 / 0.9);
+  background: rgb(255 255 255 / 0.14);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.65);
+  backdrop-filter: blur(3px);
+  transform: scale(0.72);
+  transition:
+    transform 0.35s cubic-bezier(0.2, 1.3, 0.4, 1),
+    background 0.2s,
+    color 0.2s,
+    opacity 0.2s,
+    filter 0.25s;
+}
+
+.cursor[data-mode="try"] .disc {
+  transform: scale(1);
+  color: #16181d;
+  background: #fff;
+  box-shadow: 0 10px 26px -10px rgb(30 36 50 / 0.5);
+}
+
+.cursor[data-mode="none"] .disc {
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+.cursor[data-pressed="true"] .disc {
+  transform: scale(0.6);
+  filter: blur(2px);
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cursor {
+    display: none;
+  }
+}

@@ -1,0 +1,31 @@
+.frame {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 100%;
+  aspect-ratio: 1080 / 1800;
+  margin-left: calc(100svh * -0.3);
+  transform-origin: 50% 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Soft contact shadow plus a longer cast away from the windows. */
+.shadow {
+  position: absolute;
+  left: 22%;
+  right: 8%;
+  top: 92.4%;
+  height: 5%;
+  background:
+    radial-gradient(closest-side, rgb(30 34 44 / 0.55), transparent) 14% 40% / 58% 46% no-repeat,
+    radial-gradient(closest-side, rgb(40 46 60 / 0.3), transparent) 60% 60% / 100% 80% no-repeat;
+  filter: blur(6px);
+}
