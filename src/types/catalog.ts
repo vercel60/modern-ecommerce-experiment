@@ -1,3 +1,5 @@
+export type Gender = "female" | "male";
+
 export type Slot = "bottom" | "outerwear" | "shoes" | "accessory";
 
 /** One colourway. Both images are required to sell and to "try on" the item. */
@@ -8,12 +10,15 @@ export interface Variant {
   swatch: string[];
   /** Transparent product cut-out shown on the carousel card. */
   cutout: string;
-  /** Transparent 1080x1800 layer, pixel-aligned with the model's body image. */
+  /** Transparent 1080x1800 layer, pixel-aligned with the avatar's body image. */
   layer: string;
 }
 
 export interface Product {
+  /** Unique across the whole catalogue. */
   id: string;
+  /** Avatar this product is cut for. */
+  gender: Gender;
   name: string;
   tagline: string;
   sizes: string[];
@@ -32,8 +37,6 @@ export interface Category {
   id: Slot;
   label: string;
   camera: CameraPose;
-  /** Product that is tried on the first time the category is opened. */
-  featuredId: string;
   products: Product[];
 }
 
@@ -44,12 +47,34 @@ export interface WornItem {
 
 export type Outfit = Partial<Record<Slot, WornItem>>;
 
+export interface Avatar {
+  id: Gender;
+  label: string;
+  /** Transparent 1080x1800 image of the undressed model. */
+  body: string;
+  alt: string;
+  initialOutfit: Outfit;
+  /** Product tried on the first time each category is opened. */
+  featured: Partial<Record<Slot, string>>;
+}
+
 export interface Catalog {
   brand: { name: string; wordmark: string };
   /** Backdrop image behind the whole stage. */
   backdrop: string;
-  model: { body: string; alt: string };
+  initialAvatar: Gender;
   initialCategory: Slot;
-  initialOutfit: Outfit;
+  avatars: Avatar[];
   categories: Category[];
+}
+
+/** A category narrowed down to the products of one avatar. */
+export interface WardrobeCategory extends Category {
+  featuredId: string;
+}
+
+/** Everything one avatar can wear. */
+export interface Wardrobe {
+  avatar: Avatar;
+  categories: WardrobeCategory[];
 }

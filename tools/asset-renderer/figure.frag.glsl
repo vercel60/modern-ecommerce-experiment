@@ -1,6 +1,7 @@
 // Original SDF studio scene for the placeholder catalogue.
 // Every layer is rendered with the same camera so the web app can stack them.
-// Defines injected by render.mjs: LAYER (0 body,1 bottom,2 outerwear,3 shoes,4 accessory), STYLE, PRODUCT
+// Defines injected by render.mjs: SEX (0 female, 1 male), LAYER (0 body, 1 bottom, 2 outerwear, 3 shoes, 4 accessory),
+// STYLE (0-2 women's range, 3-5 men's range), PRODUCT (0 worn, 1 cut-out)
 precision highp float; precision highp int;
 out vec4 outColor;
 uniform vec2 uRes; uniform float uSeed; uniform vec3 uRo, uTa; uniform float uTan;
@@ -22,11 +23,12 @@ float rbox(vec3 p,vec3 b,float r){ vec3 q=abs(p)-b+r; return length(max(q,0.))+m
 float torus(vec3 p,float R,float r){ return length(vec2(length(p.xz)-R,p.y))-r; }
 mat2 rot(float a){ float c=cos(a),s=sin(a); return mat2(c,-s,s,c); }
 
-const vec3 SH=vec3(.146,1.362,-.015), EL=vec3(.209,1.095,-.03), WR=vec3(.244,.868,.02);
-const float HX=-.032; // hand offset that follows the wrist
+#define G(f,m) (SEX==1?(m):(f))
+const vec3 SH=G(vec3(.146,1.362,-.015),vec3(.174,1.386,-.015)), EL=G(vec3(.209,1.095,-.03),vec3(.242,1.108,-.03)), WR=G(vec3(.244,.868,.02),vec3(.274,.872,.02));
+const float HX=G(-.032,-.002); // hand offset that follows the wrist
 
 // ---------- body ----------
-float sdHand(vec3 q){ q.x-=HX;
+float sdHand(vec3 q){ q.x-=HX; if(SEX==1){ q=(q-vec3(.284,.84,.033))/1.1+vec3(.284,.84,.033); }
   float d=ell(q-vec3(.284,.806,.033),vec3(.019,.05,.034));
   for(int i=0;i<4;i++){ float f=float(i);
     vec3 a=vec3(.287,.78-abs(f-1.5)*.004,.008+f*.0165), b=vec3(.281,.722-(f==1.||f==2.?.008:0.),.016+f*.0155);
@@ -36,82 +38,103 @@ float sdHand(vec3 q){ q.x-=HX;
   d=smin(d,cap(q,vec3(.268,.785,.079),vec3(.262,.757,.079),.0105,.008),.006);
   return d;
 }
-const float HY=.022; // head drop
+const float HY=G(.022,0.); // head drop
 float sdSkin(vec3 p0){ vec3 p=p0; if(p.y>1.44) p.y+=HY*smoothstep(1.44,1.50,p0.y);
   vec3 q=vec3(abs(p.x),p.yz);
   float head=1e3;
   if(p.y>1.38){
-    head=ell(p-vec3(0,1.648,-.014),vec3(.075,.094,.09));
-    head=smin(head,ell(p-vec3(0,1.602,.022),vec3(.0545,.082,.063)),.035);
-    head=smin(head,ell(p-vec3(0,1.5405,.052),vec3(.019,.019,.024)),.04);
+    head=ell(p-vec3(0,1.648,-.014),G(vec3(.075,.094,.09),vec3(.0765,.095,.092)));
+    head=smin(head,ell(p-vec3(0,1.602,.022),G(vec3(.0545,.082,.063),vec3(.060,.083,.064))),.035);
+    head=smin(head,ell(p-vec3(0,G(1.5405,1.536),G(.052,.055)),G(vec3(.019,.019,.024),vec3(.027,.020,.026))),.04);
+    if(SEX==1) head=smin(head,ell(q-vec3(.043,1.562,.012),vec3(.016,.022,.03)),.03);
     head=smin(head,ell(q-vec3(.0385,1.597,.054),vec3(.018,.018,.018)),.03);      // cheeks
     head=smax(head,-ell(q-vec3(.0305,1.6265,.1),vec3(.022,.0125,.0215)),.02);   // sockets
     head=smin(head,ell(q-vec3(.0305,1.6245,.0715),vec3(.0155,.0105,.013)),.006); // lids
-    head=smin(head,cap(p,vec3(0,1.628,.0815),vec3(0,1.599,.0945),.0055,.0078),.016); // nose
+    head=smin(head,cap(p,vec3(0,1.628,.0815),vec3(0,G(1.599,1.597),G(.0945,.0965)),G(.0055,.0066),G(.0078,.009)),.016); // nose
     head=smin(head,ell(q-vec3(.0078,1.5965,.087),vec3(.0062,.005,.008)),.007);
     head=smin(head,cap(q,vec3(.013,1.645,.081),vec3(.034,1.646,.07),.006,.004),.02); // brow ridge
-    float lip=min(ell(q-vec3(.0052,1.5725,.0815),vec3(.0145,.0042,.0072)),ell(p-vec3(0,1.566,.0815),vec3(.0145,.0048,.0082)));
-    head=smin(head,lip,.009);
+    vec3 lq=q; lq.y-=q.x*q.x*9.; vec3 lp=vec3(p.x,lq.y,p.z);
+    float lip=min(ell(lq-vec3(.0052,1.5725,.0812),vec3(.0150,G(.0042,.0034),.0070)),ell(lp-vec3(0,1.566,.0812),vec3(.0150,G(.0048,.0042),.0080)));
+    head=smin(head,lip,.008);
     head=smin(head,ell(q-vec3(.0725,1.612,-.016),vec3(.0065,.025,.015)),.008);
-    head=smin(head,cap(p,vec3(0,1.40,-.018),vec3(0,1.56,-.016),.052,.05),.03);
+    head=smin(head,cap(p,vec3(0,1.40,-.018),vec3(0,1.56,-.016),G(.045,.055),G(.041,.048)),.03);
   }
   float d=head;
-  d=smin(d,ell(p-vec3(0,1.26,0),vec3(.132,.17,.09)),.05);
-  d=smin(d,ell(p-vec3(0,1.08,0),vec3(.104,.15,.08)),.06);
-  d=smin(d,ell(p-vec3(0,.93,0),vec3(.128,.12,.092)),.06);
-  d=smin(d,cap(q,SH,EL,.041,.035),.04);
-  d=smin(d,cap(q,EL,WR,.034,.024),.02);
+  d=smin(d,ell(p-vec3(0,1.26,0),G(vec3(.132,.17,.09),vec3(.156,.18,.1))),.05);
+  d=smin(d,ell(p-vec3(0,1.08,0),G(vec3(.104,.15,.08),vec3(.126,.15,.09))),.06);
+  d=smin(d,ell(p-vec3(0,.93,0),G(vec3(.128,.12,.092),vec3(.132,.12,.094))),.06);
+  d=smin(d,cap(q,SH,EL,G(.041,.049),G(.035,.041)),.04);
+  d=smin(d,cap(q,EL,WR,G(.034,.040),G(.024,.028)),.02);
   d=smin(d,sdHand(q),.018);
-  d=smin(d,cap(q,vec3(.072,.88,0),vec3(.1,.5,.012),.06,.047),.04);
+  d=smin(d,cap(q,vec3(G(.072,.078),.88,0),vec3(.1,.5,.012),G(.06,.064),G(.047,.05)),.04);
   d=smin(d,cap(q,vec3(.1,.5,.012),vec3(.108,.1,-.012),.047,.032),.02);
   d=smin(d,cap(q,vec3(.108,.05,-.02),vec3(.12,.028,.12),.034,.026),.02);
   return d;
 }
-float hairLine(vec3 p){ return ell(p-vec3(0,1.598,.094),vec3(.066,.094,.084)); }
+float hairLine(vec3 p){
+  return SEX==1 ? smin(ell(p-vec3(0,1.590,.088),vec3(.066,.089,.078)),ell(vec3(abs(p.x),p.yz)-vec3(.082,1.585,.0),vec3(.026,.052,.046)),.012)
+                : ell(p-vec3(.004,1.594,.094),vec3(.0605,.094,.086));
+}
 float sdHair(vec3 p0){ vec3 p=p0; p.y+=HY;
   if(p.y<1.42) return 1e3;
-  vec3 q=vec3(abs(p.x),p.yz);
-  float d=ell(p-vec3(0,1.654,-.0155),vec3(.0805,.0975,.0955));
-  d=smin(d,cap(q,vec3(.064,1.655,.014),vec3(.064,1.60,-.026),.014,.012),.03);  // swept over the ears
-  d=smin(d,cap(q,vec3(.064,1.60,-.026),vec3(.034,1.535,-.07),.012,.012),.025);
-  d=smin(d,ell(p-vec3(0,1.60,-.075),vec3(.055,.07,.04)),.04);
-  d=smin(d,ell(p-vec3(0,1.57,-.118),vec3(.04,.042,.034)),.012);
+  vec3 q=vec3(abs(p.x),p.yz); float d;
+#if SEX==1
+  d=ell(p-vec3(0,1.655,-.018),vec3(.0795,.092,.0945));
+  float top=ell(p-vec3(.006,1.703,.004),vec3(.067,.043,.083));
+  top=smin(top,ell(p-vec3(.012,1.714,.050),vec3(.050,.028,.038)),.03);
+  float sw=p.x*1.1+p.z*.55+fbm(p*22.)*.03;
+  top-=sin(sw*190.)*.0016+sin(sw*420.+p.y*90.)*.0007+(fbm(p*34.)-.5)*.007;
+  d-=(noise(p*420.)-.5)*.0014;
+  d=smin(d,top,.018);
+  d=smax(d,-hairLine(p),.008);
+  d=smax(d,1.575-p.y+smoothstep(.0,-.06,p.z)*.0,.01);
+#else
+  d=ell(p-vec3(0,1.655,-.016),vec3(.083,.099,.097));
+  d=smin(d,cap(q,vec3(.068,1.672,.016),vec3(.070,1.59,.002),.017,.017),.03);
+  d=smin(d,cap(q,vec3(.070,1.59,.002),vec3(.060,1.512,.012),.017,.011),.02);
+  d=smin(d,ell(p-vec3(0,1.575,-.058),vec3(.073,.09,.05)),.04);
   d=smax(d,-hairLine(p),.012);
-  float fl=atan(p.y-1.69,q.x+.02)*38.+length(p.yz-vec2(1.69,.03))*130.;
-  d-=sin(fl+noise(p*55.)*4.)*.0003+sin(fl*3.1+noise(p*110.)*3.)*.0002;
-  d+=.0026*exp(-p.x*p.x*1.6e5)*smoothstep(1.67,1.70,p.y);
+  float px=p.x-.02; float lock=atan(p.z+.03,px)*13.+p.y*10.*sign(px)+fbm(p*vec3(14,5,14))*2.2;
+  d-=sin(lock)*.0022+sin(lock*3.1+1.)*.0011+sin(lock*8.)*.0004;
+  d+=.004*exp(-px*px*9e4)*smoothstep(1.665,1.70,p.y)*step(-.03,p.z);
+  d=smax(d,1.502-p.y+sin(lock*1.4)*.006,.012);
+#endif
   return d;
 }
-vec2 mapBody(vec3 p){ return vec2(sdSkin(p),1.); }   // the head comes from head.webp
+vec2 mapBody(vec3 p){ return U(vec2(sdSkin(p),1.),vec2(sdHair(p),2.)); }
 
 // ---------- outerwear ----------
 float puff(float v){ float f=abs(fract(v)*2.-1.); return sqrt(max(1.-f*f,0.)); }
-float sdSleeve(vec3 q,float k){ float a=cap(q,SH,EL,.060*k,.055*k), b=cap(q,EL,WR,.055*k,.043*k); return smin(a,b,.03); }
+float sdSleeve(vec3 q,float k){ float a=cap(q,SH,EL,G(.060,.070)*k,G(.055,.063)*k), b=cap(q,EL,WR,G(.055,.063)*k,G(.043,.050)*k); return smin(a,b,.03); }
 vec2 gSleeve;
 float jacketBase(vec3 p,float fat,float hem,out float sl,out float tor){
   vec3 q=vec3(abs(p.x),p.yz);
   float y=p.y;
-  float rx=mix(.163,.138,smoothstep(hem,1.06,y)); rx=mix(rx,.156,smoothstep(1.04,1.24,y)); rx=mix(rx,.11,smoothstep(1.28,1.47,y));
-  float rz=mix(.12,.108,smoothstep(hem,1.06,y)); rz=mix(rz,.122,smoothstep(1.04,1.24,y)); rz=mix(rz,.085,smoothstep(1.28,1.46,y));
+  float rx=mix(G(.163,.176),G(.138,.166),smoothstep(hem,1.06,y)); rx=mix(rx,G(.156,.188),smoothstep(1.04,1.24,y)); rx=mix(rx,G(.11,.13),smoothstep(1.28,1.47,y));
+  float rz=mix(G(.12,.128),G(.108,.122),smoothstep(hem,1.06,y)); rz=mix(rz,G(.122,.136),smoothstep(1.04,1.24,y)); rz=mix(rz,G(.085,.095),smoothstep(1.28,1.46,y));
   rx*=fat; rz*=fat;
   float e=length(p.xz/vec2(rx,rz)); tor=(e-1.)*min(rx,rz)*.95;
-  tor=smax(tor,y-1.43,.05); tor=smax(tor,hem-y,.018);
-  float yoke=cap(q,vec3(.03,1.425,-.02),SH,.055,.058*fat);
+  tor=smax(tor,y-G(1.43,1.452),.05); tor=smax(tor,hem-y,.018);
+  float yoke=cap(q,vec3(.03,G(1.425,1.446),-.02),SH,G(.055,.06),G(.058,.066)*fat);
   tor=smin(tor,yoke,.05);
   sl=sdSleeve(q,fat);
   // cuff end
   vec3 dir=normalize(WR-EL); sl=smax(sl,dot(q-WR,dir)-.004,.012);
   return smin(tor,sl,.016);
 }
-float sdCollar(vec3 p){
+const float NW=G(1.,1.12), NY=G(0.,.022);
+float sdCollar(vec3 p){ p.y-=NY; p.xz/=NW;
   float r=.073+.02*smoothstep(1.46,1.36,p.y);
   float front=1.437+.03*smoothstep(.05,-.1,p.z);
   vec3 c=p-vec3(0,1.40,-.012);
-  float tube=abs(length(c.xz*vec2(1.,.96))-r)-.011;
+  float tube=abs(length(c.xz*vec2(1.,.96))-r)-(STYLE==3?.016:.011);
+#if STYLE==3||STYLE==4
+  front+=STYLE==3?.03:.012; tube-=STYLE==4?sin(atan(c.x,c.z)*64.)*.0011:.004*sin(p.y*150.);
+#endif
   tube=smax(tube,p.y-front-.018,.02); tube=smax(tube,1.36-p.y,.02);
   return tube*.9;
 }
-float sdHoodDown(vec3 p){
+float sdHoodDown(vec3 p){ p.y-=NY; p.xz/=NW;
   vec3 q=p-vec3(0,1.452,-.034); q.yz=rot(.42)*q.yz;
   float r=.034+.014*smoothstep(.03,-.09,q.z)-.016*smoothstep(.0,.1,q.z);
   float a=atan(q.x,-q.z);
@@ -121,53 +144,79 @@ float sdHoodDown(vec3 p){
   return d*.9;
 }
 vec2 mapJacket(vec3 p){
-  if(p.y<.76||p.y>1.62) return vec2(max(max(.76-p.y,p.y-1.62),.02),10.);
+  if(p.y<.66||p.y>1.64) return vec2(max(max(.66-p.y,p.y-1.64),.02),10.);
   vec3 q=vec3(abs(p.x),p.yz);
   float sl,tor;
 #if STYLE==1
   float fat=1.03, hem=.83;
+#elif STYLE==3
+  float fat=.96, hem=.86;
+#elif STYLE==4
+  float fat=1.0, hem=.885;
+#elif STYLE==5
+  float fat=1.03, hem=.755;
 #else
   float fat=1., hem=.865;
 #endif
   float d=jacketBase(p,fat,hem,sl,tor);
   float ts=capT(q,SH,EL)*.28; if(ts>.28) ts=.28+capT(q,EL,WR)*.23;
   float mat=10., dT, dS;
+#define PUFFER (STYLE==0||STYLE==2||STYLE==3)
 #if STYLE==0
   float vT=p.y*17.2+.5-abs(p.x)*2.6, vS=ts*18.+.3, amp=.0115;
 #elif STYLE==2
   float ch=abs(fract(p.x*4.4+.5)-.5)*1.5;
   float vT=p.y*21.5+ch*1.35, vS=ts*22.+abs(q.z+.01)*8., amp=.0095;
+#elif STYLE==3
+  float vT=p.y*10.4+.28, vS=ts*10.6+.1, amp=.0155;
 #endif
-#if STYLE!=1
+#if PUFFER
   float wob=(fbm(p*9.)-.5)*.16, soft=(fbm(p*vec3(16,10,16))-.5)*.007;
   float pT=puff(vT+wob), pS=puff(vS+wob), cr=(fbm(p*vec3(52,22,52))-.5)*.0055;
   float mT=smoothstep(hem+.012,hem+.04,p.y), mS=smoothstep(.478,.462,ts);
   dT=(amp*pT+cr*(1.15-pT)+soft)*mT-.004*(1.-mT)-.004*exp(-pow(p.x/.011,2.))*step(0.,p.z);
   dS=(amp*.85*pS+cr*(1.15-pS)+soft)*mS-.004*(1.-mS);
 #else
-  float fold=(fbm(p*vec3(9,4.5,9)+vec3(0,p.x*7.,0))-.5)*.016+(fbm(p*vec3(21,10,21)+4.)-.5)*.004;
+  float fold=(STYLE==4?1.15:.9)*(fbm(p*vec3(9,4.5,9)+vec3(0,p.x*7.,0))-.5)*.016+(fbm(p*vec3(21,10,21)+4.)-.5)*.004;
   float elbow=exp(-pow((ts-.27)/.07,2.));
   dS=fold+sin(ts*105.+q.z*40.+fbm(q*20.)*4.)*.0035*elbow;
   dT=fold+sin(p.y*64.+abs(p.x)*30.+fbm(p*12.)*5.)*.0012*smoothstep(1.05,.92,p.y);
   dT-=.0035*exp(-pow(p.x/.007,2.))*step(0.,p.z);
+#if STYLE==1
   float yl=1.295-abs(p.x)*.2; dT-=.0024*exp(-pow((p.y-yl)/.0035,2.));
+#endif
+#if STYLE==4
+  float rib=sin(atan(p.x,p.z)*96.)*.0016; float rT=smoothstep(hem+.058,hem+.05,p.y); dT=mix(dT+.004*smoothstep(hem+.11,hem+.06,p.y),-.004+rib,rT);
+  float rS=smoothstep(.452,.458,ts); dS=mix(dS+.003*smoothstep(.40,.45,ts),-.004+sin(atan(q.x-.27,q.z-.02)*36.)*.0016,rS);
+#endif
+#if STYLE==5
+  dT-=.0026*exp(-pow((p.y-1.045)/.004,2.)); dT-=.002*exp(-pow((abs(p.x)-.026)/.003,2.))*step(0.,p.z);
+  dS-=.003*exp(-pow((ts-.445)/.004,2.));
+  vec3 fp=q-vec3(.092,.895,.128); fp.xz=rot(.35)*fp.xz; float fk=rbox(fp,vec3(.046,.062,.016),.01); float fl=rbox(fp-vec3(0,.05,.003),vec3(.048,.02,.017),.008);
+  vec3 cp=q-vec3(.088,1.215,.126); cp.xz=rot(.4)*cp.xz; float ck=rbox(cp,vec3(.036,.042,.014),.009); float cl=rbox(cp-vec3(0,.034,.003),vec3(.038,.014,.015),.007);
+  tor=smin(tor,min(min(fk,fl),min(ck,cl)),.006);
+#endif
 #endif
   d=smin(tor-dT,sl-dS,.005);
   float hood=sdHoodDown(p);
-#if STYLE!=1
+#if PUFFER
   hood-=.006*puff(length(p.xz-vec2(0,-.03))*28.+p.y*16.)+(fbm(p*38.)-.5)*.006;
 #else
   hood-=(fbm(p*14.)-.5)*.010;
 #endif
   float col=sdCollar(p);
+#if STYLE==3||STYLE==4
+  float hc=col;
+#else
   float hc=smin(hood,col,.012);
+#endif
   d=smin(d,hc,.014);
   // neck opening, so the ghost product shot is hollow
-  float hole=cap(p,vec3(0,1.37,-.012),vec3(0,1.75,-.012),.058,.066);
+  float hole=cap(p,vec3(0,1.37,-.012),vec3(0,1.75,-.012),.058*NW,.066*NW);
   float inn=-hole; if(inn>d){ d=smax(d,inn,.008); mat=14.; }
   // pockets
-  vec3 pk=q-vec3(.096,1.0,.0); pk.xy=rot(.28)*pk.xy;
-  if(p.z>0.&&abs(pk.y)<.062&&abs(pk.x)<.008) { d+=.0025*smoothstep(.007,.002,abs(pk.x)); }
+  vec3 pk=q-vec3(G(.096,.108),1.0,.0); pk.xy=rot(.28)*pk.xy;
+  if(STYLE!=5&&p.z>0.&&abs(pk.y)<.062&&abs(pk.x)<.008) { d+=.0025*smoothstep(.007,.002,abs(pk.x)); }
   return vec2(d*.72,mat);
 }
 
@@ -178,15 +227,21 @@ vec2 mapPants(vec3 p){
   float s=p.x<0.?1.7:0.;
 #if STYLE==0
   float rh=.074,rk=.060,ra=.050,hemY=.085;
+#elif STYLE==3
+  float rh=.080,rk=.068,ra=.059,hemY=.07;
+#elif STYLE==4
+  float rh=.082,rk=.072,ra=.052,hemY=.1;
+#elif STYLE==5
+  float rh=.083,rk=.081,ra=.083,hemY=.045;
 #elif STYLE==1
   float rh=.078,rk=.074,ra=.06,hemY=.08;
 #else
   float rh=.079,rk=.088,ra=.097,hemY=.045;
 #endif
   vec3 K=vec3(.101,.5,.012),A=vec3(.108,.07,-.008);
-  float hip=(length(p.xz/vec2(.118+.030*smoothstep(1.03,.88,p.y),.100+.014*smoothstep(1.02,.88,p.y)))-1.)*.108;
+  float hip=(length(p.xz/vec2(G(.118,.134)+G(.030,.024)*smoothstep(1.03,.88,p.y),G(.100,.108)+.014*smoothstep(1.02,.88,p.y)))-1.)*.108;
   hip=smax(hip,.83-p.y,.07); hip=smax(hip,p.y-1.03,.01);
-  float leg=cap(q,vec3(.073,.87,0),K,rh,rk); float lo=cap(q,K,A,rk,ra);
+  float leg=cap(q,vec3(G(.073,.080),.87,0),K,rh,rk); float lo=cap(q,K,A,rk,ra);
   leg=smin(leg,lo,.03); leg=smax(leg,p.y-.96,.05);
   leg=smax(leg,hemY-p.y,.012);
   float d=smin(hip,leg,.035);
@@ -195,6 +250,13 @@ vec2 mapPants(vec3 p){
   float knee=exp(-pow((p.y-.5)/.09,2.)), ank=smoothstep(.3,.1,p.y);
   float w=(fbm(p*vec3(15,6,15)+s)-.5)*.014;
   w+=sin(p.y*88.+q.x*60.*(crotch)+fbm(p*13.+s)*7.)*(.0026*ank+.0018*knee+.0016*crotch);
+#if STYLE==3
+  w*=.6; w+=.003*exp(-pow((q.x-.1)/.006,2.))*step(0.,p.z)*smoothstep(.95,.8,p.y);
+#elif STYLE==4
+  float cuffR=smoothstep(.165,.155,p.y); w=mix(w+.004*smoothstep(.26,.17,p.y),-.006+sin(atan(q.x-.108,p.z)*34.)*.0016,cuffR);
+#elif STYLE==5
+  float turn=smoothstep(.105,.1,p.y); w=mix(w*.8,w*.4+.006,turn); w-=.002*exp(-pow((abs(q.x-.108)-.083)/.004,2.));
+#endif
 #if STYLE==2
   w*=.32; float cr=exp(-pow((q.x-.1)/.006,2.))*step(0.,p.z)*smoothstep(.95,.8,p.y); w+=.006*cr; w+=sin(atan(q.x-.104,p.z)*5.+p.y*3.)*.0035*smoothstep(.8,.2,p.y);
 #endif
@@ -206,7 +268,7 @@ vec2 mapPants(vec3 p){
 #endif
   d+=.002*exp(-pow((p.y-.985)/.003,2.));
   float mat=20.;
-  float hole=ell(p-vec3(0,1.06,0),vec3(.112,.075,.09)); if(-hole>d){ d=smax(d,-hole,.006); mat=24.; }
+  float hole=ell(p-vec3(0,1.06,0),vec3(G(.112,.128),.075,G(.09,.098))); if(-hole>d){ d=smax(d,-hole,.006); mat=24.; }
   return vec2(d*.75,mat);
 }
 
@@ -218,6 +280,12 @@ vec2 shoe(vec3 p){
   H=.152; sh=.032;
 #elif STYLE==1
   H=.098; sh=.027;
+#elif STYLE==3
+  H=.168; sh=.036;
+#elif STYLE==4
+  H=.1; sh=.031;
+#elif STYLE==5
+  H=.096; sh=.026;
 #else
   H=.112; sh=.04;
 #endif
@@ -228,6 +296,11 @@ vec2 shoe(vec3 p){
   float o=unevenCap(vec2(q.x-.004*smoothstep(0.,.1,q.z),q.z+.05),.037,.0475,.152);
 #if STYLE==2
   o-=.004+.004*sin(q.z*46.+1.)*smoothstep(.04,.0,q.y);
+#endif
+#if STYLE==3
+  o-=.003+(.0035*smoothstep(-.2,.2,sin(q.z*150.)))*smoothstep(.026,.02,q.y);
+#elif STYLE==4
+  o-=.002+.009*smoothstep(.0,-.1,q.z)*smoothstep(.04,.0,q.y);
 #endif
   vec2 w=vec2(o,abs(q.y-sh*.5)-sh*.5); float sole=min(max(w.x+.006,w.y+.006),0.)+length(max(w+.006,0.))-.006;
 #if STYLE!=1
@@ -253,7 +326,7 @@ vec2 shoe(vec3 p){
   u+=.0016*smoothstep(.0035,0.,abs(seam-.0))*step(sh,q.y);
   u+=.0014*smoothstep(.003,0.,abs(q.z+.028+q.y*.25))*step(sh,q.y);
   vec2 r=vec2(u,mat);
-  r=U(r,vec2(sole,q.y<sh*.32?32.:31.));
+  r=U(r,vec2(sole,q.y<sh*(STYLE==3?.55:.32)?32.:31.));
   vec3 va=vec3(0,sh+.046,.08), vb=vec3(0,H*.62+.04,.022); vec3 vd=normalize(vb-va); float al=dot(q-va,vd)/length(vb-va);
 #if STYLE!=2
   for(int i=0;i<5;i++){ float f=float(i)/4.; float l=max(max(abs(u)-.0035,abs(al-f)*length(vb-va)-.0032),max(abs(q.x)-.024,sh+.03-q.y)); r=U(r,vec2(l,34.)); }
@@ -312,6 +385,31 @@ vec2 mapAcc(vec3 p){ p.x+=HX;
   // strap through the hand
   vec3 s=c-vec3(.01,.12,-.01); float R=.148; vec2 e=vec2(s.x*2.4,s.y); float ring=abs(length(e)-R)*.5-.002; 
   float st=max(max(abs(length(vec2(s.x*2.35,s.y))-R)*.5-.0042,abs(s.z)-.011),-s.y); r=U(r,vec2(st*.8,41.));
+#elif STYLE==3
+  vec3 c=p-vec3(-.30,.56,.045); c.xz=rot(-.3)*c.xz;
+  float d=rbox(c,vec3(.172,.122,.04),.018)-(fbm(c*20.)-.5)*.002; r=vec2(d,40.);
+  float flap=rbox(c-vec3(0,.052,.006),vec3(.174,.074,.042),.016); r=U(r,vec2(flap,41.));
+  for(int i=0;i<2;i++){ float sx=i==0?-.095:.095; float st=rbox(c-vec3(sx,.03,.008),vec3(.013,.10,.044),.004); r=U(r,vec2(st,40.)); r=U(r,vec2(rbox(c-vec3(sx,-.045,.05),vec3(.017,.014,.005),.003),42.)); }
+  vec3 h=c-vec3(0,.12,0); float hd=length(vec2(length(vec2(h.x,h.y*.78))-.062,h.z))-.009; hd=max(hd,-h.y); r=U(r,vec2(hd*.75,41.));
+#elif STYLE==4
+  vec3 c=p-vec3(-.318,.53,.075); c.xz=rot(-.45)*c.xz;
+  float d=rbox(c,vec3(.205,.1,.098),.08)-(fbm(c*vec3(8,14,14))-.5)*.016; d+=.003*smoothstep(.004,.001,abs(c.z-.01))*step(0.,c.y); r=vec2(d*.8,40.);
+  float pk=rbox(c-vec3(0,-.02,.09),vec3(.085,.05,.018),.012)-(fbm(c*18.)-.5)*.004; r=U(r,vec2(pk,40.));
+  for(int i=0;i<2;i++){ float sx=i==0?-.1:.1; float band=max(max(abs(d)-.006,abs(c.x-sx)-.016),-c.y-.2); r=U(r,vec2(band*.7,41.)); }
+  for(int i=0;i<2;i++){ float ex=i==0?-.2:.2; r=U(r,vec2(max(rbox(c-vec3(ex*.97,0,0),vec3(.02,.1,.098),.015),d-.005)*.8,41.)); }
+  for(int i=0;i<2;i++){ float sz=i==0?-.028:.028; vec3 h=c-vec3(0,.092,sz); float hd=length(vec2(length(vec2(h.x*.78,h.y*.54))-.0785,h.z+h.y*(i==0?-.16:.16)))-.0075; hd=max(hd,-h.y); r=U(r,vec2(hd*.5,41.)); }
+#elif STYLE==5
+  vec3 c=p-vec3(-.345,.315,.06); c.xz=rot(-.16)*c.xz;
+  vec3 b=vec3(.168,.25,.108); float d=rbox(c,b,.03);
+  float f=abs(fract(c.y*26.)-.5); if(abs(c.y)<.205) d+=.0032*smoothstep(.24,.04,f);
+  d+=.005*smoothstep(.006,.002,abs(c.z)); r=vec2(d,40.);
+  vec3 ac=abs(c); float g=rbox(ac-(b-vec3(.02)),vec3(.034),.02); r=U(r,vec2(smax(g,d-.005,.004),41.));
+  for(int i=0;i<2;i++) r=U(r,vec2(rbox(c-vec3(i==0?-.07:.07,.0,.108),vec3(.014,.024,.007),.004),42.));
+  for(int i=0;i<2;i++){ for(int j=0;j<2;j++){ vec3 w=c-vec3(i==0?-.118:.118,-.278,j==0?-.07:.07);
+    r=U(r,vec2(length(vec2(max(abs(w.x)-.011,0.),length(w.yz)-.02))-.005,43.)); r=U(r,vec2(rbox(w-vec3(0,.022,0),vec3(.022,.016,.02),.006),43.)); } }
+  float y0=.25,y1=.772-.315; float post=length(vec2(abs(c.x-.062)-.058,c.z+.03))-.0062; post=max(post,max(y0-c.y,c.y-y1)); r=U(r,vec2(post,42.));
+  r=U(r,vec2(cap(c,vec3(.0,y1,-.03),vec3(.124,y1,-.03),.0125,.0125),43.));
+  float tp=length(vec2(length(vec2(c.x,(c.y-.258)*1.9))-.055,c.z-.045))-.007; r=U(r,vec2(max(tp,.25-c.y),43.));
 #else
   vec3 c=p-vec3(-.335,.545,.075); c.xz=rot(-.45)*c.xz;
   float L=.17, rr=.098;
@@ -346,7 +444,7 @@ vec2 map(vec3 p){
   vec2 r=mapLayer(p);
 #if PRODUCT==0
  #if LAYER==2
-  r=U(r,vec2(sdSkin(p),100.));
+  r=U(r,vec2(min(sdSkin(p),sdHair(p)),100.));
  #elif LAYER==4
   float s=sdSkin(p); r=U(r,vec2(s,100.));
  #endif
@@ -364,7 +462,7 @@ float mapShadow(vec3 p){
   { vec3 q=vec3(abs(p.x),p.yz); d=min(d,cap(q,vec3(.1,.5,.01),vec3(.108,.1,-.01),.06,.05)); }
  #endif
  #if LAYER==0
-  d=min(d, p.y>1.36&&p.y<1.6 ? sdHoodDown(p) : 1e3);
+  d=min(d, p.y>1.36&&p.y<1.62 ? sdHoodDown(p) : 1e3);
  #endif
 #endif
   return d;
@@ -390,14 +488,15 @@ vec3 pal(float t){ return .5+.5*cos(6.2831*(t+vec3(.0,.33,.62))); }
 
 void material(vec3 p,vec3 n,vec3 v,float m,out vec3 alb,out float rough,out float spec,out float sheen){
   vec3 q=vec3(abs(p.x),p.yz); alb=uC0; rough=.6; spec=.04; sheen=.0;
-  if(m==1.){ if(p.y>1.5){ p.y+=HY; q.y+=HY; } alb=vec3(.715,.485,.36); rough=.5; spec=.03;
-    float lip=min(ell(q-vec3(.0052,1.5725,.0815),vec3(.0152,.0046,.011)),ell(p-vec3(0,1.566,.0815),vec3(.0150,.0052,.012)));
-    alb=mix(alb,vec3(.66,.33,.29),smoothstep(.003,-.002,lip)*.7);
+  if(m==1.){ if(p.y>1.5){ p.y+=HY; q.y+=HY; } alb=G(vec3(.735,.525,.42),vec3(.70,.49,.375)); rough=.5; spec=.03;
+    vec3 lq=q; lq.y-=q.x*q.x*9.; vec3 lp=vec3(p.x,lq.y,p.z);
+    float lip=min(ell(lq-vec3(.0052,1.5725,.0812),vec3(.0155,G(.0046,.0037),.011)),ell(lp-vec3(0,1.566,.0812),vec3(.0153,G(.0052,.0045),.012)));
+    alb=mix(alb,G(vec3(.66,.31,.28),vec3(.60,.36,.30)),smoothstep(.003,-.002,lip)*G(.75,.55));
     float ck=exp(-dot(pow((q-vec3(.043,1.592,.06))/vec3(.024,.02,.03),vec3(2)),vec3(1))); alb=mix(alb,vec3(.72,.40,.32),ck*.35);
     float fr=step(.04,p.z);
     float bx=(q.x-.0305)/.0175, by=q.y-(1.6515+.0030*(1.-bx*bx)+.0005*bx);
-    float br=smoothstep(.0030,.0012,abs(by)*(1.+.35*max(bx,0.)))*smoothstep(1.02,.75,abs(bx))*fr;
-    alb=mix(alb,vec3(.16,.105,.08),br*.7*(.65+.35*noise(p*vec3(900,300,300))));
+    float br=smoothstep(G(.0030,.0046),G(.0012,.0022),abs(by)*(1.+.35*max(bx,0.)))*smoothstep(1.02,.75,abs(bx))*fr;
+    alb=mix(alb,G(vec3(.17,.10,.07),vec3(.09,.06,.05)),br*G(.75,.85)*(.65+.35*noise(p*vec3(900,300,300))));
     float ex=(q.x-.0305)/.0155, k=max(1.-ex*ex,0.), up=.0049*k+.0009*ex, lo=-.0036*k+.0009*ex, ey=q.y-1.6255;
     float ins=smoothstep(.0006,-.0004,max(ey-up,lo-ey))*fr*step(abs(ex),1.);
     vec2 ic=vec2((p.x>0.?1.:1.)*(q.x-.0302),ey-.0006); float ir=length(ic);
@@ -405,12 +504,23 @@ void material(vec3 p,vec3 n,vec3 v,float m,out vec3 alb,out float rough,out floa
     eye=mix(eye,vec3(.02),smoothstep(.0056,.005,ir)*smoothstep(.0042,.0052,ir)*.6); eye*=mix(.62,1.,smoothstep(.0,.0035,up-ey));
     if(length(vec2(p.x-(p.x>0.?.0302:-.0302)+.0016,ey-.0024))<.0011) eye=vec3(1.1);
     alb=mix(alb,eye,ins); if(ins>.5){ rough=.18; }
-    float lash=smoothstep(.0013,.0004,abs(ey-up-.0003))*smoothstep(1.16,.95,abs(ex))*fr; alb=mix(alb,vec3(.05,.035,.03),lash*.92);
+    float lash=smoothstep(.0013,.0004,abs(ey-up-.0003))*smoothstep(1.16,.95,abs(ex))*fr; alb=mix(alb,vec3(.05,.035,.03),lash*G(.95,.55));
     float crease=smoothstep(.0012,.0,abs(ey-up-.0038))*smoothstep(1.1,.7,abs(ex))*fr; alb*=1.-.18*crease;
     alb*=1.-.10*smoothstep(.0010,.0,abs(ey-lo))*smoothstep(1.,.8,abs(ex))*fr;
-    float hl=hairLine(p); alb=mix(alb,vec3(.10,.07,.06),smoothstep(-.007,.004,hl)*step(1.655,p.y)*.75);
+    if(SEX==1){ float jaw=smoothstep(1.598,1.565,p.y)*smoothstep(1.485,1.515,p.y)*smoothstep(-.03,.02,p.z);
+      float lipz=smoothstep(.026,.016,length((q.xy-vec2(0,1.570))*vec2(1.,1.5))); float must=exp(-pow((p.y-1.5815)/.0036,2.))*smoothstep(.026,.012,q.x);
+      alb=mix(alb,vec3(.25,.175,.145),(.40*jaw*(1.-lipz)+.42*must)*(.55+.45*noise(p*900.))); }
+    float hl=hairLine(p); alb=mix(alb,vec3(.10,.07,.06),smoothstep(-.005,.004,hl)*step(1.655,p.y)*G(.6,0.));
     if(q.y<1.36&&q.y>.87&&q.x<.2) alb=vec3(.55,.55,.56);
-  } else if(m==2.){ alb=vec3(.115,.068,.046)*(.8+.45*noise(vec3(atan(p.y-1.67,abs(p.x)+.02)*60.,length(p.xy-vec2(0,1.67))*9.,3.))); rough=.42; spec=.05; }
+  } else if(m==2.){ vec3 hp=p; hp.y+=HY;
+#if SEX==1
+    float st=noise(vec3((hp.x*1.1+hp.z*.55)*170.,hp.y*30.,hp.z*20.)); float fade=smoothstep(1.665,1.60,hp.y);
+    alb=mix(vec3(.085,.06,.048),vec3(.17,.115,.085),st); alb=mix(alb,vec3(.25,.18,.145),fade*.55); rough=.5; spec=.04;
+#else
+    float px=hp.x-.02; float st=noise(vec3(atan(hp.z+.03,px)*26.+hp.y*18.*sign(px),hp.y*5.,2.)); float st2=noise(vec3(atan(hp.z+.03,px)*70.+hp.y*40.*sign(px),hp.y*9.,5.));
+    alb=mix(vec3(.12,.062,.038),vec3(.33,.185,.11),st*.65+st2*.35); rough=.4; spec=.05;
+#endif
+  }
   else if(m==10.){
     float sl,tor; jacketBase(p,1.,.86,sl,tor); float isSl=step(0.,tor-sl);
     alb=uC0; rough=.36; spec=.045; sheen=.12;
@@ -420,14 +530,29 @@ void material(vec3 p,vec3 n,vec3 v,float m,out vec3 alb,out float rough,out floa
     float sideX=.092+.045*pow(abs(p.y-1.06)/.24,2.)*.6;
     if(isSl>.5||yoke||hoodz) alb=uC1; else if(q.x>sideX) alb=uC2;
     alb*=.97+.06*noise(p*900.);
+#elif STYLE==4
+    rough=.46; spec=.04; sheen=.15; float tb=capT(q,SH,EL)*.28; if(tb>.28) tb=.28+capT(q,EL,WR)*.23;
+    if((isSl<.5&&p.y<.938)||(isSl>.5&&tb>.454)||(p.y>1.448&&length(p.xz)<.115)){ alb=uC1; rough=.8; spec=.02; }
+#elif STYLE==5
+    rough=.82; spec=.02; sheen=.12; alb*=.94+.1*noise(p*vec3(700,700,700));
+    if(length(p-vec3(0,1.46,-.03))<.16&&p.y>1.43) alb=mix(alb,uC1,smoothstep(1.455,1.475,p.y)*step(p.z,.0)*.0+0.);
+#elif STYLE==3
+    rough=.42; spec=.045; if(p.y>1.31-abs(p.x)*.1) alb=uC1;
 #endif
     if(abs(p.x)<.0055&&p.z>.0&&isSl<.5&&p.y<1.475){ alb=mix(uC3,alb,.0); rough=.3; spec=.08; alb*=.6+.4*step(.5,fract(p.y*260.)); }
-    vec3 pk=q-vec3(.096,1.0,.0); pk.xy=rot(.28)*pk.xy; if(p.z>0.&&isSl<.5&&abs(pk.y)<.06&&abs(pk.x)<.0028) alb=uC3*.8;
+    vec3 pk=q-vec3(G(.096,.108),1.0,.0); pk.xy=rot(.28)*pk.xy; if(STYLE!=5&&p.z>0.&&isSl<.5&&abs(pk.y)<.06&&abs(pk.x)<.0028) alb=uC3*.8;
   } else if(m==14.){ alb=uC3*.55+uC0*.1; rough=.8; spec=.02; }
   else if(m==20.){ alb=uC0*(.93+.12*noise(p*vec3(800,500,800))); rough=.78; spec=.025; sheen=.1;
     if(p.y>.99){ alb*=.86; } 
 #if STYLE==1
     float st=abs(abs(q.x-.171)); 
+#endif
+#if STYLE==4
+    if(p.y<.158) alb*=.82; if(p.z>0.&&abs(p.x)<.016&&p.y>.9&&p.y<1.0&&abs(abs(p.x)-.009)<.0028) alb=uC1;
+#elif STYLE==5
+    alb=uC0*(.86+.26*noise(p*vec3(950,260,950))); alb=mix(alb,alb*1.25,exp(-pow((q.x-.1)/.04,2.))*smoothstep(.3,.5,p.y)*smoothstep(.85,.6,p.y)*.5*step(0.,p.z));
+    float sm=abs(abs(q.x-.11)-.078); if(sm<.0016&&p.y<.85) alb=mix(alb,uC1,.7); if(p.y<.1) alb=mix(alb,vec3(.72,.76,.82),.35); if(abs(p.y-.978)<.0012) alb=uC1;
+    float pkl=length(vec2(q.x-.14,p.y-.985))-.075; if(abs(pkl)<.0016&&p.z>0.) alb=uC1;
 #endif
     if(p.z>0.&&abs(p.x)<.003&&p.y>.86) alb*=.7; }
   else if(m==24.){ alb=uC0*.45; rough=.9; spec=.01; }
@@ -442,6 +567,13 @@ void material(vec3 p,vec3 n,vec3 v,float m,out vec3 alb,out float rough,out floa
 #elif STYLE==1
     float t=dot(n,normalize(vec3(.4,.6,.7)))*.55+p.z*3.2+p.y*2.4; alb=mix(uC0*.7,pal(t)*vec3(.50,.46,.62),.62); rough=.26; spec=.12;
     if(p.z<-.05&&p.y>.05) alb=uC1;
+#elif STYLE==3
+    rough=.62; alb*=.9+.14*noise(p*300.); if(p.z>.118-p.y*.25&&p.y<.075) alb=uC1; if(p.y>.15) alb=uC1; if(p.z<-.05+p.y*.15&&p.y<.1) alb=uC1;
+#elif STYLE==4
+    rough=.75; alb*=.95+.07*sin(p.z*900.)*sin(p.y*900.+p.x*500.); if(p.z>.112-abs(p.x)*.6||p.z<-.052) alb=uC1;
+    float l=abs(p.y-.058-.022*sin((p.z+.02)*34.)); if(l<.006&&p.z>-.05&&p.z<.07) alb=uC2; if(p.z<-.066) alb=uC2;
+#elif STYLE==5
+    rough=.42; spec=.05; if(p.z<-.056&&p.y>.055) alb=uC1; if(abs(p.y-.052)<.0012&&p.z<.06) alb*=.8;
 #else
     float mesh=sin(p.z*900.)*sin(p.y*900.+p.x*500.); alb=uC0*(.94+.08*mesh); rough=.75;
     if(p.z<-.046+p.y*.2) alb=uC1; if(p.z>.15) alb=uC2*.9;
@@ -451,18 +583,30 @@ void material(vec3 p,vec3 n,vec3 v,float m,out vec3 alb,out float rough,out floa
     if(p.y<.017&&p.z>.02) alb=uC2; if(p.z<.0&&p.y>.012&&p.y<.026) alb=uC2;
 #elif STYLE==1
     alb=uC3; if(p.y>.019) alb=uC1;
+#elif STYLE==3
+    alb=uC3;
+#elif STYLE==4
+    if(p.y>.014&&p.y<.021) alb=uC2;
+#elif STYLE==5
+    if(p.y<.004) alb*=.9;
 #else
     float wv=.02+.006*sin(p.z*46.+1.); if(p.y<wv) alb=uC1; 
 #endif
   } else if(m==32.){ alb=uC2; rough=.6; }
   else if(m==33.){ alb=uC1*.35; rough=.9; spec=.01; }
-  else if(m==34.){ alb=STYLE==1?uC1:(STYLE==2?uC2:vec3(.93)); rough=.7; }
+  else if(m==34.){ alb=STYLE==1?uC1:(STYLE==2?uC2:(STYLE==3?uC2*.9:vec3(.93))); rough=.7; }
   else if(m==35.){ alb=uC1; rough=.25; spec=.1; }
   else if(m==40.){ alb=uC0;
 #if STYLE==0
     rough=.28; spec=.06; alb*=.97+.05*noise(p*500.);
 #elif STYLE==1
     rough=.5; spec=.045;
+#elif STYLE==3
+    rough=.4; spec=.055; alb*=.92+.14*noise(p*260.);
+#elif STYLE==4
+    rough=.9; spec=.015; alb*=.86+.22*noise(p*vec3(800,800,800));
+#elif STYLE==5
+    rough=.3; spec=.28; alb*=.96+.06*noise(p*vec3(30,900,30));
 #else
     rough=.42; spec=.05; alb*=.92+.14*noise(p*vec3(220,220,220));
 #endif

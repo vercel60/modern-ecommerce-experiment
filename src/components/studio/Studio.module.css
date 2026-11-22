@@ -32,6 +32,17 @@
   pointer-events: none;
 }
 
+.categories {
+  top: max(3.2svh, env(safe-area-inset-top));
+  left: 50%;
+  translate: -50% 0;
+}
+
+.avatars {
+  top: max(3.2svh, env(safe-area-inset-top));
+  right: max(1.2vw, 10px);
+}
+
 .layer {
   position: absolute;
   inset: 0;
@@ -105,6 +116,13 @@
 }
 
 @media (max-aspect-ratio: 4/5) {
+  .avatars {
+    top: calc(max(3.2svh, env(safe-area-inset-top)) + 50px);
+    right: auto;
+    left: 50%;
+    translate: -50% 0;
+  }
+
   .wordmark {
     top: 15%;
   }

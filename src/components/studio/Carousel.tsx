@@ -4,7 +4,7 @@ import { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, 
 import { gsap } from "gsap";
 import { CARD_POSES, MOTION, poseAt } from "@/config/motion";
 import { findVariant } from "@/lib/catalog";
-import type { Category, Product } from "@/types/catalog";
+import type { Product, WardrobeCategory } from "@/types/catalog";
 import styles from "./Carousel.module.css";
 
 const MIN_SLOTS = 9;
@@ -24,7 +24,7 @@ export interface CarouselHandle {
 
 interface Props {
   ref: Ref<CarouselHandle>;
-  category: Category;
+  category: WardrobeCategory;
   centerId: string;
   variants: Record<string, string>;
   ready: boolean;

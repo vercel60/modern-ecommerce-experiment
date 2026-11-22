@@ -4,13 +4,13 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { gsap } from "gsap";
 import { MOTION } from "@/config/motion";
-import { findCategory, findProduct, findVariant, layerUrl, outfitLayers } from "@/lib/catalog";
-import type { CameraPose, Catalog, Category, Outfit, Product, Slot } from "@/types/catalog";
+import { findCategory, findProduct, findVariant, layerUrl, outfitLayers, wardrobeFor } from "@/lib/catalog";
+import type { CameraPose, Catalog, Gender, Outfit, Product, Slot, WardrobeCategory } from "@/types/catalog";
 import { Carousel, type CarouselHandle } from "./Carousel";
-import { CategoryNav } from "./CategoryNav";
 import { Figure, type FigureHandle } from "./Figure";
-import { ArrowIcon } from "./icons";
+import { ArrowIcon, FemaleIcon, MaleIcon } from "./icons";
 import { ProductBar } from "./ProductBar";
+import { Segmented } from "./Segmented";
 import { StageCursor } from "./StageCursor";
 import { ToolRail } from "./ToolRail";
 import { useReducedMotion } from "./useReducedMotion";
@@ -19,16 +19,26 @@ import styles from "./Studio.module.css";
 const FULL_LOOK: CameraPose = { body: 0.78, head: 0.11 };
 const DRAG_THRESHOLD = 6;
 
+const AVATAR_ICON = { female: <FemaleIcon />, male: <MaleIcon /> } satisfies Record<Gender, unknown>;
+
 function initialVariants(catalog: Catalog): Record<string, string> {
   const map: Record<string, string> = {};
   for (const category of catalog.categories)
     for (const product of category.products) map[product.id] = product.variants[0].id;
-  for (const worn of Object.values(catalog.initialOutfit)) map[worn.productId] = worn.variantId;
+  for (const avatar of catalog.avatars)
+    for (const worn of Object.values(avatar.initialOutfit)) map[worn.productId] = worn.variantId;
   return map;
 }
 
+function perAvatar<T>(catalog: Catalog, make: (id: Gender) => T): Record<Gender, T> {
+  return Object.fromEntries(catalog.avatars.map((a) => [a.id, make(a.id)])) as Record<Gender, T>;
+}
+
+const initialOutfits = (catalog: Catalog) =>
+  perAvatar(catalog, (id) => catalog.avatars.find((a) => a.id === id)!.initialOutfit);
+
 /** Product the carousel of a category is centred on. */
-function centerOf(category: Category, outfit: Outfit): string {
+function centerOf(category: WardrobeCategory, outfit: Outfit): string {
   return outfit[category.id]?.productId ?? category.featuredId;
 }
 
@@ -42,79 +52,119 @@ export function Studio({ catalog }: { catalog: Catalog }) {
   const carousel = useRef<CarouselHandle>(null);
   const figure = useRef<FigureHandle>(null);
 
+  const wardrobes = useMemo(() => perAvatar(catalog, (id) => wardrobeFor(catalog, id)), [catalog]);
   const [ready, setReady] = useState(false);
+  const [avatar, setAvatar] = useState<Gender>(catalog.initialAvatar);
   const [active, setActive] = useState<Slot>(catalog.initialCategory);
-  // Lags behind `active` while the old cards play their exit.
-  const [shown, setShown] = useState<Slot>(catalog.initialCategory);
-  // `outfit` drives the UI; `live` is the source of truth between delayed updates.
-  const [outfit, setOutfit] = useState<Outfit>(catalog.initialOutfit);
-  const live = useRef<Outfit>(catalog.initialOutfit);
+  // Lags behind `avatar` and `active` while the old cards play their exit.
+  const [shown, setShown] = useState({ avatar: catalog.initialAvatar, slot: catalog.initialCategory });
+  // Each avatar keeps its own outfit. `outfits` drives the UI; `live` is the source of truth between delayed updates.
+  const [outfits, setOutfits] = useState(() => initialOutfits(catalog));
+  const live = useRef(outfits);
   const [variants, setVariants] = useState(() => initialVariants(catalog));
   const [sizes, setSizes] = useState<Record<string, string>>({});
   const [fullLook, setFullLook] = useState(false);
-  const visited = useRef(new Set<Slot>([catalog.initialCategory]));
+  const visited = useRef(perAvatar(catalog, () => new Set<Slot>([catalog.initialCategory])));
   const barTimer = useRef(0);
   const switchToken = useRef(0);
 
-  const activeCategory = findCategory(catalog, active);
-  const shownCategory = findCategory(catalog, shown);
+  const wardrobe = wardrobes[avatar];
+  const outfit = outfits[avatar];
+  const avatarItems = useMemo(
+    () => catalog.avatars.map(({ id, label }) => ({ id, label, icon: AVATAR_ICON[id] })),
+    [catalog],
+  );
+  const activeCategory = findCategory(wardrobe, active);
+  const shownCategory = findCategory(wardrobes[shown.avatar], shown.slot);
+  const shownOutfit = outfits[shown.avatar];
   const barProduct = findProduct(activeCategory, centerOf(activeCategory, outfit));
   const barVariant = variants[barProduct.id];
-  const initialLayers = useMemo(() => outfitLayers(catalog, catalog.initialOutfit), [catalog]);
+  const initialLayers = useMemo(() => {
+    const first = wardrobes[catalog.initialAvatar];
+    return outfitLayers(first, first.avatar.initialOutfit);
+  }, [catalog, wardrobes]);
 
-  /** Dress the model: the picture scans after `scanDelay`, the UI updates after `barDelay`. */
+  /** Dress an avatar: the picture scans after `scanDelay`, the UI updates after `barDelay`. */
   const wear = useCallback(
-    (next: Outfit, scanDelay: number, barDelay: number) => {
-      live.current = next;
-      figure.current?.scan(outfitLayers(catalog, next), scanDelay);
+    (who: Gender, next: Outfit, scanDelay: number, barDelay: number) => {
+      live.current = { ...live.current, [who]: next };
+      figure.current?.scan(outfitLayers(wardrobes[who], next), scanDelay);
       window.clearTimeout(barTimer.current);
-      barTimer.current = window.setTimeout(() => setOutfit(next), reducedMotion ? 0 : barDelay * 1000);
+      if (reducedMotion || barDelay === 0) setOutfits(live.current);
+      else barTimer.current = window.setTimeout(() => setOutfits(live.current), barDelay * 1000);
     },
-    [catalog, reducedMotion],
+    [wardrobes, reducedMotion],
   );
 
   const tryOn = useCallback(
-    (slot: Slot, product: Product) => {
+    (product: Product, slot: Slot) => {
+      const who = product.gender;
+      if (who !== avatar) return; // a card of the previous avatar, still playing its exit
       const variantId = findVariant(product, variants[product.id]).id;
-      const worn = live.current[slot];
+      const worn = live.current[who][slot];
       if (worn?.productId === product.id && worn.variantId === variantId) return;
-      wear({ ...live.current, [slot]: { productId: product.id, variantId } }, MOTION.scan.delay, MOTION.barDelay);
+      wear(who, { ...live.current[who], [slot]: { productId: product.id, variantId } }, MOTION.scan.delay, MOTION.barDelay);
     },
-    [variants, wear],
+    [avatar, variants, wear],
   );
 
+  /** Opening a category for the first time tries on its featured product. */
+  const enter = useCallback(
+    (who: Gender, slot: Slot): Outfit => {
+      const current = live.current[who];
+      if (visited.current[who].has(slot)) return current;
+      visited.current[who].add(slot);
+      const category = findCategory(wardrobes[who], slot);
+      const product = findProduct(category, category.featuredId);
+      const worn = { productId: product.id, variantId: findVariant(product, variants[product.id]).id };
+      const same = current[slot]?.productId === worn.productId && current[slot]?.variantId === worn.variantId;
+      return same ? current : { ...current, [slot]: worn };
+    },
+    [variants, wardrobes],
+  );
+
+  const showCards = useCallback(async (next: { avatar: Gender; slot: Slot }) => {
+    const token = ++switchToken.current;
+    await carousel.current?.exit();
+    if (token === switchToken.current) setShown(next);
+  }, []);
+
   const selectCategory = useCallback(
-    async (id: Slot) => {
+    (id: Slot) => {
       if (id === active) return;
-      const token = ++switchToken.current;
-      const category = findCategory(catalog, id);
       setActive(id);
       setFullLook(false);
-      // Opening a category for the first time tries on its featured product.
-      if (!visited.current.has(id)) {
-        visited.current.add(id);
-        const product = findProduct(category, category.featuredId);
-        const worn = { productId: product.id, variantId: findVariant(product, variants[product.id]).id };
-        const same = live.current[id]?.productId === worn.productId && live.current[id]?.variantId === worn.variantId;
-        if (!same) wear({ ...live.current, [id]: worn }, MOTION.category.scanDelay, 0);
-      }
-      await carousel.current?.exit();
-      if (token === switchToken.current) setShown(id);
+      const next = enter(avatar, id);
+      if (next !== live.current[avatar]) wear(avatar, next, MOTION.category.scanDelay, 0);
+      void showCards({ avatar, slot: id });
     },
-    [active, catalog, variants, wear],
+    [active, avatar, enter, showCards, wear],
+  );
+
+  /** Swap the whole model. Every category now lists that avatar's own products. */
+  const selectAvatar = useCallback(
+    (id: Gender) => {
+      if (id === avatar) return;
+      const slot = wardrobes[id].categories.some((c) => c.id === active) ? active : wardrobes[id].categories[0].id;
+      setAvatar(id);
+      setActive(slot);
+      wear(id, enter(id, slot), MOTION.avatar.scanDelay, 0);
+      void showCards({ avatar: id, slot });
+    },
+    [active, avatar, enter, showCards, wardrobes, wear],
   );
 
   const step = useCallback(
     (by: number) => {
       const product = carousel.current?.step(by);
-      if (product) tryOn(shown, product);
+      if (product) tryOn(product, shown.slot);
     },
     [shown, tryOn],
   );
 
   const selectVariant = (variantId: string) => {
     setVariants((v) => ({ ...v, [barProduct.id]: variantId }));
-    wear({ ...live.current, [active]: { productId: barProduct.id, variantId } }, 0.05, 0);
+    wear(avatar, { ...live.current[avatar], [active]: { productId: barProduct.id, variantId } }, 0.05, 0);
   };
 
   const applyLook = (next: Outfit) => {
@@ -124,56 +174,60 @@ export function Studio({ catalog }: { catalog: Catalog }) {
       return merged;
     });
     carousel.current?.goTo(centerOf(shownCategory, next));
-    wear(next, MOTION.scan.delay, MOTION.barDelay);
+    wear(avatar, next, MOTION.scan.delay, MOTION.barDelay);
   };
 
   const shuffle = () => {
     const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
     const next: Outfit = {};
-    for (const category of catalog.categories) {
-      const others = category.products.filter((p) => p.id !== live.current[category.id]?.productId);
+    for (const category of wardrobe.categories) {
+      const others = category.products.filter((p) => p.id !== live.current[avatar][category.id]?.productId);
       const product = pick(others.length ? others : category.products);
       next[category.id] = { productId: product.id, variantId: pick(product.variants).id };
-      visited.current.add(category.id);
+      visited.current[avatar].add(category.id);
     }
     applyLook(next);
   };
 
   const reset = () => {
-    visited.current = new Set([active]);
+    const { initialOutfit } = wardrobe.avatar;
+    visited.current[avatar] = new Set([active]);
     // Keep the open category dressed so its carousel stays centred on something worn.
-    const fallback = catalog.initialOutfit[active] ?? live.current[active];
-    applyLook(fallback ? { ...catalog.initialOutfit, [active]: fallback } : catalog.initialOutfit);
+    const fallback = initialOutfit[active] ?? live.current[avatar][active];
+    applyLook(fallback ? { ...initialOutfit, [active]: fallback } : initialOutfit);
   };
 
   // Cards for the open category are the likeliest next try-on, so fetch them first.
   useEffect(() => {
     if (!ready) return;
-    const urls = (category: Category) => category.products.flatMap((p) => p.variants.map((v) => v.layer));
+    const urls = (category: WardrobeCategory) => category.products.flatMap((p) => p.variants.map((v) => v.layer));
     figure.current?.prefetch(urls(shownCategory));
     const timer = window.setTimeout(() => {
-      for (const category of catalog.categories)
+      for (const category of wardrobe.categories)
         figure.current?.prefetch([
-          layerUrl(catalog, category.id, {
+          layerUrl(wardrobe, category.id, {
             productId: category.featuredId,
             variantId: findProduct(category, category.featuredId).variants[0].id,
           }),
         ]);
+      // So switching avatar starts scanning at once.
+      for (const other of Object.values(wardrobes))
+        if (other !== wardrobe) figure.current?.prefetch(outfitLayers(other, live.current[other.avatar.id]));
     }, 1200);
     return () => window.clearTimeout(timer);
-  }, [ready, shownCategory, catalog]);
+  }, [ready, shownCategory, wardrobe, wardrobes]);
 
   // Decode the neighbouring cards while idle so the next scan never waits on an upload.
   useEffect(() => {
     if (!ready) return;
     const { products } = shownCategory;
-    const center = products.findIndex((p) => p.id === centerOf(shownCategory, outfit));
+    const center = products.findIndex((p) => p.id === centerOf(shownCategory, shownOutfit));
     const timer = window.setTimeout(() => {
       const near = [1, -1].map((by) => products[(center + by + products.length) % products.length]);
       figure.current?.warm(near.map((p) => findVariant(p, variants[p.id]).layer));
     }, MOTION.scan.delay * 1000 + 1200);
     return () => window.clearTimeout(timer);
-  }, [ready, shownCategory, outfit, variants]);
+  }, [ready, shownCategory, shownOutfit, variants]);
 
   useEffect(() => () => window.clearTimeout(barTimer.current), []);
 
@@ -248,7 +302,7 @@ export function Studio({ catalog }: { catalog: Catalog }) {
       if (!dragging) return;
       const held = e.timeStamp - lastT > 80;
       const product = carousel.current?.settle(held ? 0 : (velocity * 1000) / cardWidth());
-      if (product) tryOn(shown, product);
+      if (product) tryOn(product, shown.slot);
       // Swallow the click that follows a drag.
       const swallow = (event: Event) => event.stopPropagation();
       el.addEventListener("click", swallow, { capture: true, once: true });
@@ -295,11 +349,11 @@ export function Studio({ catalog }: { catalog: Catalog }) {
         <Carousel
           ref={carousel}
           category={shownCategory}
-          centerId={centerOf(shownCategory, outfit)}
+          centerId={centerOf(shownCategory, shownOutfit)}
           variants={variants}
           ready={ready}
           reducedMotion={reducedMotion}
-          onPick={(product) => tryOn(shown, product)}
+          onPick={(product) => tryOn(product, shown.slot)}
           onHover={(product) => figure.current?.warm([findVariant(product, variants[product.id]).layer])}
         />
       </div>
@@ -309,13 +363,28 @@ export function Studio({ catalog }: { catalog: Catalog }) {
           ref={figure}
           pose={fullLook ? FULL_LOOK : activeCategory.camera}
           initialLayers={initialLayers}
-          label={catalog.model.alt}
+          label={wardrobe.avatar.alt}
           reducedMotion={reducedMotion}
           onReady={() => setReady(true)}
         />
       </div>
 
-      <CategoryNav categories={catalog.categories} active={active} reducedMotion={reducedMotion} onSelect={selectCategory} />
+      <Segmented
+        label="Categories"
+        items={wardrobe.categories}
+        active={active}
+        className={styles.categories}
+        reducedMotion={reducedMotion}
+        onSelect={selectCategory}
+      />
+      <Segmented
+        label="Avatar"
+        items={avatarItems}
+        active={avatar}
+        className={styles.avatars}
+        reducedMotion={reducedMotion}
+        onSelect={selectAvatar}
+      />
       <ToolRail fullLook={fullLook} onFullLook={setFullLook} onShuffle={shuffle} onReset={reset} />
       <button type="button" className={styles.prev} aria-label="Previous product" data-ui data-cursor="none" onClick={() => step(-1)}>
         <ArrowIcon />

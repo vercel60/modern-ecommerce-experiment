@@ -23,6 +23,8 @@ export const MOTION = {
     /** Scan start after the tab is pressed. */
     scanDelay: 0.42,
   },
+  /** Scan start after the avatar is switched. */
+  avatar: { scanDelay: 0.12 },
   pill: { lead: 0.22, trail: 0.38, ease: "power3.out" },
   cursor: { follow: 0.22 },
   parallax: { duration: 0.9, backdrop: 10, wordmark: 16, cards: 8, figure: 4 },

@@ -42,8 +42,7 @@ const evaluate = async (expression) => {
 const sources = { figure: readFileSync(path.join(here, "figure.frag.glsl"), "utf8") };
 const room = path.join(here, "room.frag.glsl");
 if (existsSync(room)) sources.room = readFileSync(room, "utf8");
-const head = readFileSync(path.join(here, "head.webp")).toString("base64");
-await evaluate(`window.HEAD="data:image/webp;base64,${head}";window.SRC=${JSON.stringify(sources)};` + readFileSync(path.join(here, "page.js"), "utf8"));
+await evaluate(`window.SRC=${JSON.stringify(sources)};` + readFileSync(path.join(here, "page.js"), "utf8"));
 
 for (const job of jobs) {
   if (filter && !job.name.includes(filter)) continue;

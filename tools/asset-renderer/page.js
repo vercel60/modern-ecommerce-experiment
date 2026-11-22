@@ -21,32 +21,7 @@ void main(){ vec4 c=texelFetch(t,ivec2(gl_FragCoord.xy),0)/n; float a=clamp(c.a,
     return (cache[fs] = p);
   };
   const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-  // "add": replace the rendered head with the photo head. "cut": punch its shape out of a garment.
-  const withHead = async (source, mode) => {
-    const photo = await createImageBitmap(await (await fetch(HEAD)).blob());
-    const { width: w, height: h } = source;
-    const c = Object.assign(document.createElement("canvas"), { width: w, height: h });
-    const x = c.getContext("2d");
-    x.drawImage(source, 0, 0);
-    if (mode === "cut") x.globalCompositeOperation = "destination-out";
-    else {
-      x.clearRect(0, 0, w, Math.round(h * 0.139));
-      // shade the neck under the jaw: only the shadow of an off-canvas copy lands on existing pixels
-      x.globalCompositeOperation = "source-atop";
-      for (const [dx, dy, blur, a] of [[0, 0.022, 0.026, 0.5], [0, 0.008, 0.008, 0.4]]) {
-        x.shadowColor = `rgba(58, 26, 14, ${a})`;
-        x.shadowBlur = blur * w;
-        x.shadowOffsetX = w * (dx + 2);
-        x.shadowOffsetY = h * dy;
-        x.drawImage(photo, -w * 2, 0, w, h);
-      }
-      x.shadowColor = "transparent";
-      x.globalCompositeOperation = "source-over";
-    }
-    x.drawImage(photo, 0, 0, w, h);
-    return c;
-  };
-  window.renderJob = async ({ src, defines = {}, w, h, spp, cam, colors = [], head, expo = 0.78, quality = 0.9, tile = 256 }) => {
+  window.renderJob = async ({ src, defines = {}, w, h, spp, cam, colors = [], expo = 0.78, quality = 0.9, tile = 256 }) => {
     cv.width = w; cv.height = h;
     const fs = "#version 300 es\n" + Object.entries(defines).map(([k, v]) => `#define ${k} ${v}\n`).join("") + SRC[src];
     const p = program(fs), r = program(RESOLVE);
@@ -74,9 +49,7 @@ void main(){ vec4 c=texelFetch(t,ivec2(gl_FragCoord.xy),0)/n; float a=clamp(c.a,
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, w, h); gl.useProgram(r);
     gl.uniform1f(gl.getUniformLocation(r, "n"), spp); gl.uniform1f(gl.getUniformLocation(r, "expo"), expo);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    let image = cv;
-    if (head) image = await withHead(cv, head);
-    const blob = await new Promise((z) => image.toBlob(z, "image/webp", quality));
+    const blob = await new Promise((z) => cv.toBlob(z, "image/webp", quality));
     gl.deleteTexture(tex); gl.deleteFramebuffer(fb);
     const b = new Uint8Array(await blob.arrayBuffer()); let s = "";
     for (let i = 0; i < b.length; i += 8192) s += String.fromCharCode(...b.subarray(i, i + 8192));

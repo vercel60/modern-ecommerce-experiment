@@ -27,8 +27,8 @@ const MAX_HEIGHT = 1800;
 
 function fit(pose: CameraPose, width: number, height: number) {
   const portrait = width / height < 0.8;
-  const body = portrait ? pose.body * 0.74 : pose.body;
-  const head = portrait ? pose.head * 0.6 + 0.07 : pose.head;
+  const body = portrait ? pose.body * 0.72 : pose.body;
+  const head = portrait ? pose.head * 0.6 + 0.085 : pose.head;
   const scale = body / (FIGURE_FRAME.soles - FIGURE_FRAME.headTop);
   return { scale, y: (head - FIGURE_FRAME.headTop * scale) * height };
 }

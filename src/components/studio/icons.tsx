@@ -21,6 +21,20 @@ export const BodyIcon = () => (
   </Icon>
 );
 
+export const FemaleIcon = () => (
+  <Icon>
+    <circle cx="12" cy="8.5" r="5" />
+    <path d="M12 13.5V21M8.5 17.5h7" />
+  </Icon>
+);
+
+export const MaleIcon = () => (
+  <Icon>
+    <circle cx="10" cy="14" r="5" />
+    <path d="M13.6 10.4 20 4M14.8 4H20v5.2" />
+  </Icon>
+);
+
 export const ShuffleIcon = () => (
   <Icon>
     <path d="M3 7h3.5c5 0 6 10 11 10H21M3 17h3.5c1.8 0 3-1.3 4-2.9M13.5 9.9c1-1.6 2.2-2.9 4-2.9H21M18 4l3 3-3 3M18 14l3 3-3 3" />
